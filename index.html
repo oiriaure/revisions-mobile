@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="auto" data-mode="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Révisions">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#f6f5f2">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://raw.githubusercontent.com https://api.github.com https://generativelanguage.googleapis.com">
+  <title>Révisions</title>
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+  <div id="splash" aria-hidden="true">
+    <div class="splash-box">
+      <img class="splash-logo" src="assets/icon.png" alt="">
+      <b class="splash-name">Révisions</b>
+      <div class="splash-bar"><i></i></div>
+      <small class="splash-txt">Chargement de tes cours…</small>
+    </div>
+  </div>
+  <div id="app" class="no-sidebar">
+    <aside id="sidebar"></aside>
+    <div class="main">
+      <header id="titlebar"></header>
+      <div id="scroller"><main id="view"></main></div>
+    </div>
+  </div>
+
+  <div id="screen-flash" aria-hidden="true"></div>
+  <div id="pause-pop" role="status" aria-live="polite"></div>
+  <div id="notices" aria-live="polite"></div>
+  <!-- Mise à jour de l'application -->
+  <div id="upd" class="modal" hidden><div class="dialog upd-dialog" role="dialog" aria-label="Mise à jour"></div></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Réglages (fenêtre de préférences) -->
+  <div id="settings" class="modal" hidden>
+    <div class="prefs-win" role="dialog" aria-label="Réglages">
+      <aside class="prefs-nav">
+        <div class="prefs-nav-head"><b>Réglages</b><small id="prefs-profile"></small></div>
+        <button data-prefs-tab="look" aria-selected="true"><i data-ico="sun"></i><span>Apparence</span></button>
+        <button data-prefs-tab="study"><i data-ico="cards"></i><span>Révision</span></button>
+        <button data-prefs-tab="qcm"><i data-ico="checklist"></i><span>QCM</span></button>
+        <button data-prefs-tab="notif"><i data-ico="bell"></i><span>Notifications</span></button>
+        <button data-prefs-tab="general"><i data-ico="sliders"></i><span>Général</span></button>
+        <div class="prefs-ver" id="prefs-ver"></div>
+      </aside>
+
+      <section class="prefs-main">
+        <header class="prefs-head">
+          <div><h2 id="prefs-title">Apparence</h2><p id="prefs-sub">Thème, couleurs et lisibilité</p></div>
+          <button class="icon-btn" data-app="settings-close" title="Fermer (Échap)" id="settings-x"></button>
+        </header>
+
+        <div class="prefs-body">
+          <!-- Apparence -->
+          <div class="prefs-pane" data-pane="look">
+            <div class="pref-block">
+              <h3>Thème</h3>
+              <div class="theme-cards">
+                <button class="theme-card" data-pref-set="theme" data-value="light">
+                  <span class="mini light"><i></i><b></b><b></b><em></em></span><span>Clair</span>
+                </button>
+                <button class="theme-card" data-pref-set="theme" data-value="dark">
+                  <span class="mini dark"><i></i><b></b><b></b><em></em></span><span>Sombre</span>
+                </button>
+                <button class="theme-card" data-pref-set="theme" data-value="auto">
+                  <span class="mini auto"><i></i><b></b><b></b><em></em></span><span>Automatique</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="pref-block">
+              <h3>Couleur principale</h3>
+              <div class="swatches">
+                <button class="swatch auto" data-pref-set="accentChoice" data-value="auto" title="Couleur de chaque matière"><span></span></button>
+                <button class="swatch" data-pref-set="accentChoice" data-value="#c2366e" style="--sw:#c2366e" title="Framboise"><span></span></button>
+                <button class="swatch" data-pref-set="accentChoice" data-value="#e0558e" style="--sw:#e0558e" title="Rose"><span></span></button>
+                <button class="swatch" data-pref-set="accentChoice" data-value="#a82c5f" style="--sw:#a82c5f" title="Bordeaux"><span></span></button>
+                <button class="swatch" data-pref-set="accentChoice" data-value="#8a4fd8" style="--sw:#8a4fd8" title="Violet"><span></span></button>
+                <button class="swatch" data-pref-set="accentChoice" data-value="#4453c9" style="--sw:#4453c9" title="Indigo"><span></span></button>
+                <button class="swatch" data-pref-set="accentChoice" data-value="#17807b" style="--sw:#17807b" title="Émeraude"><span></span></button>
+                <button class="swatch" data-pref-set="accentChoice" data-value="#d16a1e" style="--sw:#d16a1e" title="Corail"><span></span></button>
+                <label class="swatch custom" title="Couleur personnalisée"><input type="color" id="set-accent" data-pref="accent"><span></span></label>
+              </div>
+              <p class="pref-hint" id="accent-hint"></p>
+            </div>
+
+            <div class="pref-block">
+              <h3>Taille du texte <span class="pref-val" id="set-fs-v"></span></h3>
+              <div class="range-row"><span class="a-sm">A</span><input type="range" min="14" max="30" data-pref="fs"><span class="a-lg">A</span></div>
+              <div class="text-preview">Une <b>institution</b> est l'ensemble des règles formelles et informelles qui régissent les relations d'une collectivité.</div>
+            </div>
+
+            <div class="pref-block">
+              <h3>Police</h3>
+              <div class="font-cards">
+                <button class="font-card" data-pref-set="font" data-value="system"><span style="font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif">Aa</span><small>Système</small></button>
+                <button class="font-card" data-pref-set="font" data-value="georgia"><span style="font-family:Georgia,serif">Aa</span><small>Georgia</small></button>
+                <button class="font-card" data-pref-set="font" data-value="trebuchet"><span style="font-family:'Trebuchet MS',sans-serif">Aa</span><small>Trebuchet</small></button>
+                <button class="font-card" data-pref-set="font" data-value="verdana"><span style="font-family:Verdana,sans-serif">Aa</span><small>Verdana</small></button>
+                <button class="font-card" data-pref-set="font" data-value="mono"><span style="font-family:'Courier New',monospace">Aa</span><small>Courier</small></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Révision -->
+          <div class="prefs-pane" data-pane="study" hidden>
+            <div class="pref-block">
+              <h3>Flashcards</h3>
+              <div class="pref-list">
+                <div class="pref-row">
+                  <div><b>Vitesse du retournement</b><small>Durée de l'animation quand la carte se retourne</small></div>
+                  <div class="pref-ctl range-ctl"><input type="range" min="2" max="15" data-pref="speed"><span class="pref-val" id="set-speed-v"></span></div>
+                </div>
+                <div class="pref-row">
+                  <div><b>Sens du retournement</b><small>Comment la carte pivote</small></div>
+                  <div class="seg-ctl">
+                    <button data-pref-set="dir" data-value="Y">↔ Horizontal</button>
+                    <button data-pref-set="dir" data-value="X">↕ Vertical</button>
+                  </div>
+                </div>
+                <label class="pref-row">
+                  <div><b>Afficher le chapitre</b><small>Étiquette du chapitre sur les cartes et les questions</small></div>
+                  <input type="checkbox" class="switch" data-pref="showcat">
+                </label>
+                <label class="pref-row">
+                  <div><b>Flash de couleur</b><small>Halo vert ou rouge quand tu réponds</small></div>
+                  <input type="checkbox" class="switch" data-pref="flashbg">
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- QCM -->
+          <div class="prefs-pane" data-pane="qcm" hidden>
+            <div class="pref-block">
+              <h3>Évaluation</h3>
+              <div class="pref-list">
+                <div class="pref-row">
+                  <div><b>Questions par évaluation</b><small>Tirées au hasard dans la banque de questions</small></div>
+                  <div class="seg-ctl">
+                    <button data-pref-set="qcmCount" data-value="10">10</button>
+                    <button data-pref-set="qcmCount" data-value="20">20</button>
+                    <button data-pref-set="qcmCount" data-value="30">30</button>
+                    <button data-pref-set="qcmCount" data-value="0">Toutes</button>
+                  </div>
+                </div>
+                <label class="pref-row">
+                  <div><b>Mélanger les questions</b><small>Un ordre différent à chaque évaluation</small></div>
+                  <input type="checkbox" class="switch" data-pref="shufq">
+                </label>
+                <label class="pref-row">
+                  <div><b>Mélanger les propositions</b><small>Les réponses changent de place</small></div>
+                  <input type="checkbox" class="switch" data-pref="shufo">
+                </label>
+              </div>
+            </div>
+            <div class="pref-block">
+              <h3>Motivation</h3>
+              <div class="pref-list">
+                <label class="pref-row">
+                  <div><b>Confettis</b><small>À la fin de chaque évaluation</small></div>
+                  <input type="checkbox" class="switch" data-pref="conf">
+                </label>
+                <label class="pref-row" id="set-cheer-row">
+                  <div><b>Messages d'encouragement</b><small>Une petite bulle toutes les 10 questions</small></div>
+                  <input type="checkbox" class="switch" data-pref="cheer">
+                </label>
+              </div>
+              <p class="pref-hint">Les changements s'appliquent à la prochaine évaluation.</p>
+            </div>
+          </div>
+
+          <!-- Notifications -->
+          <div class="prefs-pane" data-pane="notif" hidden>
+            <div class="pref-block">
+              <h3>Pauses</h3>
+              <div class="pref-list">
+                <label class="pref-row">
+                  <div><b>Rappel de pause</b><small>Un petit message en haut à gauche te propose 5 à 10 minutes de pause</small></div>
+                  <input type="checkbox" class="switch" data-pref="breakOn">
+                </label>
+                <div class="pref-row">
+                  <div><b>Après combien de temps ?</b><small>Temps de révision sans pause</small></div>
+                  <div class="seg-ctl">
+                    <button data-pref-set="breakEvery" data-value="30">30 min</button>
+                    <button data-pref-set="breakEvery" data-value="45">45 min</button>
+                    <button data-pref-set="breakEvery" data-value="60">1 h</button>
+                    <button data-pref-set="breakEvery" data-value="90">1 h 30</button>
+                  </div>
+                </div>
+                <div class="pref-row">
+                  <div><b>Aperçu</b><small>Afficher le rappel maintenant</small></div>
+                  <button class="btn" data-app="test-break"><i data-ico="pause"></i>Voir</button>
+                </div>
+              </div>
+            </div>
+            <div class="pref-block">
+              <h3>Objectif du jour</h3>
+              <div class="pref-list">
+                <div class="pref-row">
+                  <div><b>Temps de révision visé</b><small>Affiché sur ton accueil avec ta série de jours</small></div>
+                  <div class="seg-ctl">
+                    <button data-pref-set="goal" data-value="15">15 min</button>
+                    <button data-pref-set="goal" data-value="30">30 min</button>
+                    <button data-pref-set="goal" data-value="60">1 h</button>
+                    <button data-pref-set="goal" data-value="120">2 h</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="pref-block">
+              <h3>Activité</h3>
+              <div class="pref-list">
+                <label class="pref-row">
+                  <div><b>Résultats des autres profils</b><small>Être prévenu quand un autre profil termine un QCM</small></div>
+                  <input type="checkbox" class="switch" data-pref="remoteNotif">
+                </label>
+                <label class="pref-row" id="set-cheer-row2">
+                  <div><b>Messages d'encouragement</b><small>Pendant les QCM (réglage aussi dans l'onglet QCM)</small></div>
+                  <input type="checkbox" class="switch" data-pref="cheer">
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Général -->
+          <div class="prefs-pane" data-pane="general" hidden>
+            <div class="pref-block">
+              <h3>Mes données</h3>
+              <div class="pref-list">
+                <div class="pref-row" data-desktop-only>
+                  <div><b>Sauvegarde</b><small id="data-state"></small></div>
+                  <button class="btn" data-app="data-folder"><i data-ico="doc"></i>Ouvrir le dossier</button>
+                </div>
+                <div class="pref-row">
+                  <div><b>Synchronisation entre ordinateurs</b><small id="sync-state"></small></div>
+                  <button class="btn" data-app="sync-now"><i data-ico="reset"></i>Synchroniser</button>
+                </div>
+              </div>
+            </div>
+            <div class="pref-block" data-desktop-only id="iphone-block" hidden>
+              <h3>Sur iPhone</h3>
+              <div class="iphone-box">
+                <div id="iphone-qr" aria-label="QR code d'installation"></div>
+                <div class="iphone-txt">
+                  <ol>
+                    <li>Scanne ce code avec l'<b>appareil photo</b> de l'iPhone</li>
+                    <li>Dans Safari : <b>Partager</b> › <b>Sur l'écran d'accueil</b></li>
+                    <li>Ouvre Révisions depuis l'écran d'accueil</li>
+                  </ol>
+                  <small>Mêmes cours, notes et résultats, synchronisés en direct. Ce code est personnel : ne le partage pas.</small>
+                  <button class="btn" data-app="iphone-copy"><i data-ico="doc"></i>Copier le lien</button>
+                </div>
+              </div>
+            </div>
+            <div class="pref-block">
+              <h3>Utilisation</h3>
+              <div class="pref-list">
+                <label class="pref-row" data-desktop-only>
+                  <div><b>Raccourcis clavier</b><small>Espace, flèches, Entrée et chiffres pour aller plus vite</small></div>
+                  <input type="checkbox" class="switch" data-pref="kbd">
+                </label>
+                <div class="pref-row" data-desktop-only>
+                  <div><b>Liste des raccourcis</b><small>Toutes les touches disponibles</small></div>
+                  <button class="btn" data-app="help"><i data-ico="keyboard"></i>Afficher</button>
+                </div>
+                <div class="pref-row">
+                  <div><b>Tutoriel</b><small>Revoir la présentation de l'application</small></div>
+                  <button class="btn" data-app="tuto"><i data-ico="play"></i>Revoir</button>
+                </div>
+              </div>
+            </div>
+            <div class="pref-block">
+              <h3>Réinitialisation</h3>
+              <div class="pref-list">
+                <div class="pref-row">
+                  <div><b>Réglages par défaut</b><small>Remet le thème, les couleurs et les options d'origine. Ta progression est conservée.</small></div>
+                  <button class="btn danger" data-app="settings-reset"><i data-ico="reset"></i>Réinitialiser</button>
+                </div>
+              </div>
+            </div>
+            <div class="about-card">
+              <img src="assets/icon.png" alt="">
+              <div><b>Révisions</b><small id="about-ver">Application de révision</small><small>created by Clément D.</small></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Tutoriel -->
+  <div id="tuto" class="modal" hidden>
+    <div class="dialog tuto-dialog" role="dialog" aria-label="Tutoriel"></div>
+  </div>
+
+  <!-- Aide clavier -->
+  <div id="help" class="modal" hidden>
+    <div class="dialog help-dialog" role="dialog" aria-label="Raccourcis clavier">
+      <div class="dialog-head"><h2>Raccourcis clavier</h2></div>
+      <div class="dialog-body">
+        <h3>Navigation</h3>
+        <dl class="keys">
+          <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Choisir un profil, une matière, puis Fiches (1), Flashcards (2) ou QCM (3)</dd>
+          <dt><kbd>?</kbd></dt><dd>Afficher ou masquer cette aide</dd>
+          <dt><kbd>Échap</kbd></dt><dd>Fermer une fenêtre</dd>
+        </dl>
+        <h3>Flashcards</h3>
+        <dl class="keys">
+          <dt><kbd>Espace</kbd></dt><dd>Voir la réponse (retourner la carte)</dd>
+          <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Carte précédente / suivante</dd>
+          <dt><kbd>↑</kbd></dt><dd>Je sais</dd>
+          <dt><kbd>↓</kbd></dt><dd>Je ne sais pas (ajoutée aux cartes à revoir)</dd>
+        </dl>
+        <h3>QCM</h3>
+        <dl class="keys">
+          <dt><kbd>1</kbd> – <kbd>9</kbd></dt><dd>Cocher ou décocher une proposition</dd>
+          <dt><kbd>Entrée</kbd></dt><dd>Commencer, valider, puis passer à la question suivante</dd>
+        </dl>
+      </div>
+      <div class="dialog-foot"><button class="btn primary" data-app="help-close">Fermer</button></div>
+    </div>
+  </div>
+  <script src="js/registry.js"></script>
+  <script src="js/mobile-boot.js"></script>
+  <!-- Matières (un fichier par matière) -->
+  <!-- Application -->
+  <script src="vendor/katex/katex.min.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/tracker.js"></script>
+  <script src="js/stats.js"></script>
+  <script src="js/notes.js"></script>
+  <script src="js/launch-decor.js"></script>
+  <script src="js/rappels.js"></script>
+  <script src="js/flashcards.js"></script>
+  <script src="js/qcm.js"></script>
+  <script src="js/assistant.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

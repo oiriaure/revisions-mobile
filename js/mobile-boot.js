@@ -103,6 +103,37 @@
     };
     new MutationObserver(addBtn).observe(tb, { childList: true });
     addBtn();
+    /* Barre d'onglets en bas (comme une application iPhone) */
+    const TABS = [["", "Accueil", '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>'],
+      ["calendar", "Calendrier", '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'],
+      ["notes", "Notes", '<path d="M5 3.5h10l4 4V20.5H5z"/><path d="M15 3.5v4h4"/><path d="M8.5 12h7M8.5 15.5h5"/>'],
+      ["stats", "Progrès", '<path d="M4 20V4"/><path d="M4 20h16"/><rect x="7.5" y="11" width="3" height="6" rx=".8"/><rect x="12.5" y="7" width="3" height="10" rx=".8"/><rect x="17.5" y="13" width="2.5" height="4" rx=".8"/>'],
+      ["menu", "Matières", '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>']];
+    const bar = document.createElement("nav");
+    bar.className = "mb-tabs";
+    bar.innerHTML = TABS.map(([r, l, svg]) => `<button data-tab="${r}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${svg}</svg><span>${l}</span></button>`).join("");
+    document.body.appendChild(bar);
+    const pidNow = () => (location.hash.match(/^#\/([a-z0-9_-]+)/) || [])[1];
+    bar.addEventListener("click", e => {
+      const b = e.target.closest("[data-tab]");
+      if (!b) return;
+      const p = pidNow(); if (!p) return;
+      if (b.dataset.tab === "menu") { html.classList.toggle("nav-open"); return; }
+      close();
+      location.hash = `#/${p}${b.dataset.tab ? "/" + b.dataset.tab : ""}`;
+    });
+    const markTab = () => {
+      const part = (location.hash.split("/")[2] || "");
+      const key = ["calendar", "notes", "stats"].includes(part) ? part : part === "history" ? "stats" : part ? "menu" : "";
+      bar.querySelectorAll("[data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === key));
+    };
+    addEventListener("hashchange", markTab);
+    markTab();
+    /* Couleur de Safari / de la barre d'état assortie au thème */
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const tint = () => { if (meta) requestAnimationFrame(() => { meta.content = getComputedStyle(tb).backgroundColor || "#f6f5f2"; }); };
+    new MutationObserver(tint).observe(html, { attributes: true, attributeFilter: ["data-mode", "data-profile", "data-screen", "style"] });
+    tint();
     document.getElementById("sidebar").addEventListener("click", e => { if (e.target.closest("a[href], [data-nav], [data-app]")) close(); });
     addEventListener("hashchange", close);
     /* Glisser vers la gauche pour fermer, depuis le bord gauche pour ouvrir */

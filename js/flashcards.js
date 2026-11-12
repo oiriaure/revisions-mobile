@@ -121,7 +121,7 @@ window.Flashcards = (function () {
     st.known = r.known || 0; st.unknown = r.unknown || 0;
     q(".fc-done").hidden = true;
     updatePack();
-    if (r.done) { done(); return true; }
+    if (r.done) { done(true); return true; }
     show(0);
     if (r.flipped) setFlipped(true);
     return true;
@@ -254,8 +254,9 @@ window.Flashcards = (function () {
   }
 
   /* Bilan de fin de paquet */
-  function done() {
+  function done(restored) {
     const left = missedIn().length;
+    if (!restored && window.Track) Track.event(st.ctx.profile.id, { type: "flash", sid: st.S.id, title: st.S.title, n: st.deck.length, ok: st.known, ko: st.unknown, chap: st.chapter });
     q(".fc-body").hidden = true;
     const box = q(".fc-done");
     box.hidden = false;
@@ -273,13 +274,14 @@ window.Flashcards = (function () {
           <button class="btn lg" data-act="restart">${icon("reset")}Recommencer le paquet</button>
           <button class="btn lg" data-act="restart-shuffle">${icon("shuffle")}Mélanger et recommencer</button>
           <button class="btn subtle" data-act="to-qcm">${icon("checklist")}Passer au QCM</button>
+          ${window.Plan ? `<button class="btn subtle" data-act="plan-review" title="Révision espacée : on retient mieux en revoyant 2 jours plus tard">${icon("calendar")}Revoir dans 2 jours</button>` : ""}
         </div>
       </div>`;
     save();
   }
 
-  function reset() {
-    if (!confirm("Vider la liste des cartes « À revoir » pour cette matière ?")) return;
+  async function reset() {
+    if (!await App.ask("Les cartes marquées « Je ne savais pas » ne seront plus mises de côté.", { title: "Vider la liste « À revoir » ?", ok: "Vider", danger: true }) || !st) return;
     st.missed = [];
     Store.del(st.key);
     if (st.pack === "missed") st.pack = "all";
@@ -307,6 +309,13 @@ window.Flashcards = (function () {
         save();
         App.askAssistant(`Je révise cette flashcard (${c[0]}) :\nQuestion : ${c[1]}\nRéponse : ${c[2].replace(/\*\*/g, "")}\n\nExplique-la-moi simplement, avec un exemple, pour que je la retienne.`,
           null, { link: `fc:${st.S.id}:${c[1]}`, title: "Flashcard · " + U.plain(c[1]).replace(/\$/g, "").slice(0, 60), back: location.hash });
+        break;
+      }
+      case "plan-review": {
+        const d = Plan.addDays(Plan.today(), 2);
+        Plan.addQuick(st.ctx.profile.id, { date: d, sid: st.S.id, kind: "review", chap: st.chapter === "all" ? null : st.chapter, dur: 20 });
+        App.toast("Révision ajoutée à ton calendrier dans 2 jours");
+        t.disabled = true;
         break;
       }
       case "to-qcm": App.studyChapter("qcm", st.chapter === "all" ? null : st.chapter); break;

@@ -29,7 +29,8 @@ window.Sync = (function () {
   const API = "https://api.github.com";
   const MTIME = "rev:sync:mtime";       // date de modification de chaque donnée
   const PULL_FAST = 3000, PULL_SLOW = 5000;
-  const PUSH_DELAY = 1000, PUSH_SLOW = 120000;
+  const PUSH_DELAY = 1000, PUSH_SLOW = 75000;      // PUSH_SLOW : temps de révision + présence « en ligne »
+  const ONLINE = 210000;                             // signalé il y a moins de 3,5 min = en ligne
   /* écart entre deux envois : court après un moment calme, plus long pendant une frappe continue
      (GitHub limite le nombre d'enregistrements par heure) */
   const pushGap = () => (Date.now() - lastPush < 30000 ? 8000 : 2500);
@@ -84,8 +85,8 @@ window.Sync = (function () {
     const keys = {};
     const all = new Set(Store.keys(`rev:${pid}:`).concat(Object.keys(mtimes).filter(k => k.startsWith(`rev:${pid}:`))));
     all.forEach(k => { if (isShared(pid, k)) keys[k] = { t: mtimes[k] || 1, v: Store.get(k, null) }; });
-    const data = { v: 2, pid, device, platform, updated: Date.now(),
-      time: Store.get(`rev:${pid}:time`, {}), events: Store.get(`rev:${pid}:events`, []).slice(-80), keys };
+    const data = { v: 2, pid, device, platform, updated: Date.now(), active: activePid === pid && !document.hidden,
+      time: Store.get(`rev:${pid}:time`, {}), events: Store.get(`rev:${pid}:events`, []).slice(-400), keys };
     let s = JSON.stringify(data);
     if (s.length > 700000) { delete keys[`rev:${pid}:convs`]; s = JSON.stringify(data); }   // limite de taille
     return s;
@@ -149,7 +150,7 @@ window.Sync = (function () {
   function strip(r) {
     const o = {};
     Object.keys(r).forEach(pid => { o[pid] = {}; Object.keys(r[pid]).forEach(d => {
-      const x = r[pid][d]; o[pid][d] = { __sha: x.__sha, device: x.device, platform: x.platform, updated: x.updated, time: x.time, events: x.events };
+      const x = r[pid][d]; o[pid][d] = { __sha: x.__sha, device: x.device, platform: x.platform, updated: x.updated, active: x.active, time: x.time, events: x.events };
     }); });
     return o;
   }
@@ -270,6 +271,27 @@ window.Sync = (function () {
     schedulePush(false);
     window.addEventListener("online", () => soon(true));
     window.addEventListener("focus", () => loop());
+    /* Présence : on se signale régulièrement tant qu'un profil est ouvert */
+    setInterval(() => { if (activePid && !document.hidden) { slow.add(activePid); schedulePush(false); } }, 30000);
+    document.addEventListener("visibilitychange", () => { if (activePid) { fast.add(activePid); schedulePush(false); } });
+  }
+
+  /* Profil ouvert sur cet appareil (pour « en ligne ») */
+  let activePid = null;
+  function setActive(pid) {
+    if (pid === activePid) return;
+    [activePid, pid].forEach(p => { if (p) fast.add(p); });
+    activePid = pid;
+    schedulePush(false);
+  }
+  /* En ligne : un autre appareil a ce profil ouvert et s'est signalé récemment */
+  function presence(pid) {
+    if (activePid === pid) return { online: true, here: true, platform };
+    const devs = Object.values(remote[pid] || {}).filter(d => d && d.updated);
+    const live = devs.filter(d => d.active && Date.now() - d.updated < ONLINE).sort((a, b) => b.updated - a.updated)[0];
+    if (live) return { online: true, platform: live.platform, at: live.updated };
+    const last = devs.sort((a, b) => b.updated - a.updated)[0];
+    return { online: false, at: last ? last.updated : 0, platform: last && last.platform };
   }
 
   const others = () => {
@@ -279,7 +301,7 @@ window.Sync = (function () {
   };
 
   return {
-    init, soon, enabled: on, status: () => Object.assign({ others: others(), joined }, state), device: () => device,
+    init, soon, setActive, presence, enabled: on, status: () => Object.assign({ others: others(), joined }, state), device: () => device,
     onUpdate: f => listeners.push(f),
     remoteTimes: pid => Object.values(remote[pid] || {}).map(d => d.time || {}),
     remoteEvents: pid => [].concat(...Object.values(remote[pid] || {}).map(d => d.events || [])),

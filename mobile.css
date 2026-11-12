@@ -8,6 +8,59 @@ html.mobile, html.mobile body { height: 100%; overscroll-behavior: none; }
 html.mobile body { position: fixed; inset: 0; overflow: hidden; }
 html.mobile input, html.mobile textarea, html.mobile select { font-size: 16px; }   /* pas de zoom automatique */
 
+/* ---------- Barre d'état de l'iPhone (heure, batterie) ----------
+   L'application passe sous la barre d'état (pas de bandeau noir) :
+   la zone du haut prend la couleur de la barre de titre. En thème clair,
+   la barre de titre prend la couleur du profil pour que l'heure (blanche) reste lisible. */
+html.mobile { --status: var(--titlebar); }
+html.mobile.standalone::before {
+  content: ""; position: fixed; left: 0; right: 0; top: 0; height: env(safe-area-inset-top); z-index: 300;
+  background: var(--status); pointer-events: none; transition: background-color .25s;
+}
+html.mobile.standalone:not([data-mode="dark"]) { --status: color-mix(in srgb, var(--accent) 92%, #000); }
+html.mobile.standalone:not([data-mode="dark"]) #titlebar {
+  background: var(--status); color: #fff; border-bottom-color: transparent;
+  --muted: rgba(255, 255, 255, .78); --faint: rgba(255, 255, 255, .55); --hover: rgba(255, 255, 255, .16); --titlebar: var(--status);
+}
+html.mobile.standalone:not([data-mode="dark"]) #titlebar .tb-current,
+html.mobile.standalone:not([data-mode="dark"]) #titlebar .mb-menu,
+html.mobile.standalone:not([data-mode="dark"]) #titlebar .tb-btn { color: #fff; }
+html.mobile.standalone[data-screen="profiles"] { --status: var(--titlebar); }
+html.mobile.standalone[data-screen="profiles"] #titlebar { background: transparent; }
+html.mobile .mb-gate { padding-top: calc(24px + env(safe-area-inset-top)); }
+html.mobile.standalone .mb-gate::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top); background: color-mix(in srgb, var(--brand) 92%, #000); }
+
+/* Barre de titre : cloche et personnes à droite, menu déroulant en pleine largeur */
+html.mobile .tb-right { gap: 6px; padding-left: 4px; }
+html.mobile .tb-people .avatar.xs { width: 26px; height: 26px; }
+html.mobile .pop { left: 8px; right: 8px !important; width: auto; max-height: calc(100vh - 120px - env(safe-area-inset-top)); }
+html.mobile .cal-bar .btn span, html.mobile .toolbar-right .btn.primary span { display: none; }
+html.mobile .cal-label { font-size: 15px; margin-left: 4px; }
+html.mobile .cal-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+html.mobile .cs-item { padding: 10px 12px; }
+html.mobile .cs-late { grid-column: 1 / -1; }
+html.mobile .cal-hero { flex-wrap: wrap; }
+html.mobile .hist-row { padding: 10px 12px; gap: 10px; }
+html.mobile .hr-pct { display: none; }
+html.mobile .hist-filters { flex-direction: column; align-items: stretch; }
+html.mobile .note-share-bar { padding: 8px 12px; gap: 8px; }
+
+/* Barre d'onglets du bas */
+.mb-tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; display: grid; grid-template-columns: repeat(5, 1fr);
+  padding: 6px 4px calc(4px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: saturate(1.6) blur(18px); backdrop-filter: saturate(1.6) blur(18px); border-top: 1px solid var(--line);
+}
+.mb-tabs button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border: 0; background: transparent; color: var(--faint); font-size: 10.5px; font-weight: 600; }
+.mb-tabs svg { width: 24px; height: 24px; }
+.mb-tabs button.on { color: var(--accent-text); }
+.mb-tabs button:active { transform: scale(.92); }
+html[data-screen="profiles"] .mb-tabs, html.nav-open .mb-tabs { display: none; }
+html.mobile:not([data-screen="profiles"]) #view { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+html.mobile:not([data-screen="profiles"]) #toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
+html.mobile .tb-search { display: grid; }
+html.mobile .sb-search kbd { display: none; }
+
 /* ---------- Écran d'activation / installation ---------- */
 .mb-gate {
   position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
@@ -118,3 +171,5 @@ html.mobile #toast { bottom: calc(20px + env(safe-area-inset-bottom)); }
 html.mobile kbd, html.mobile .rp-key, html.mobile .keys, html.mobile [data-app="help"] { display: none !important; }
 html.mobile .subj-info { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 html.mobile select { max-width: 100%; }
+/* une fenêtre ouverte passe devant la barre d'onglets */
+html.mobile body:has(.modal:not([hidden])) .mb-tabs, html.mobile body:has(#inbox-pop) .mb-tabs { display: none; }

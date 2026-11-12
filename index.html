@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Révisions">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#f6f5f2">
   <link rel="apple-touch-icon" href="assets/icon.png">
   <meta http-equiv="Content-Security-Policy"
@@ -224,6 +224,14 @@
                   <div><b>Résultats des autres profils</b><small>Être prévenu quand un autre profil termine un QCM</small></div>
                   <input type="checkbox" class="switch" data-pref="remoteNotif">
                 </label>
+                <label class="pref-row">
+                  <div><b>Rappels du calendrier</b><small>Une bulle quand c'est l'heure d'une séance prévue</small></div>
+                  <input type="checkbox" class="switch" data-pref="planNotif">
+                </label>
+                <label class="pref-row" data-desktop-only>
+                  <div><b>Notifications de l'ordinateur</b><small>Quand l'application est en arrière-plan ou réduite</small></div>
+                  <input type="checkbox" class="switch" data-pref="sysNotif">
+                </label>
                 <label class="pref-row" id="set-cheer-row2">
                   <div><b>Messages d'encouragement</b><small>Pendant les QCM (réglage aussi dans l'onglet QCM)</small></div>
                   <input type="checkbox" class="switch" data-pref="cheer">
@@ -242,7 +250,11 @@
                   <button class="btn" data-app="data-folder"><i data-ico="doc"></i>Ouvrir le dossier</button>
                 </div>
                 <div class="pref-row">
-                  <div><b>Synchronisation entre ordinateurs</b><small id="sync-state"></small></div>
+                  <div><b>Copie de mes données</b><small>Exporter tes notes, réglages, calendrier et résultats dans un fichier, ou les reprendre depuis ce fichier</small></div>
+                  <div class="pref-btns"><button class="btn" data-app="data-export"><i data-ico="download"></i>Exporter</button><button class="btn subtle" data-app="data-import">Importer</button></div>
+                </div>
+                <div class="pref-row">
+                  <div><b>Synchronisation entre appareils</b><small id="sync-state"></small></div>
                   <button class="btn" data-app="sync-now"><i data-ico="reset"></i>Synchroniser</button>
                 </div>
               </div>
@@ -311,6 +323,7 @@
         <h3>Navigation</h3>
         <dl class="keys">
           <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Choisir un profil, une matière, puis Fiches (1), Flashcards (2) ou QCM (3)</dd>
+          <dt><kbd>Ctrl</kbd> <kbd>K</kbd></dt><dd>Rechercher partout : pages, chapitres, questions, notes</dd>
           <dt><kbd>?</kbd></dt><dd>Afficher ou masquer cette aide</dd>
           <dt><kbd>Échap</kbd></dt><dd>Fermer une fenêtre</dd>
         </dl>
@@ -339,7 +352,11 @@
   <script src="js/sync.js"></script>
   <script src="js/tracker.js"></script>
   <script src="js/stats.js"></script>
+  <script src="js/social.js"></script>
   <script src="js/notes.js"></script>
+  <script src="js/calendar.js"></script>
+  <script src="js/history.js"></script>
+  <script src="js/palette.js"></script>
   <script src="js/launch-decor.js"></script>
   <script src="js/rappels.js"></script>
   <script src="js/flashcards.js"></script>

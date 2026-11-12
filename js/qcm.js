@@ -98,6 +98,7 @@ window.Qcm = (function () {
               <a class="btn" href="#/${ctx.profile.id}/${S.id}">Retour à la matière</a>
               <button class="btn" data-act="restart">${icon("reset")}Nouvelle évaluation</button>
               <button class="btn" data-act="review-all">${icon("checklist")}Correction complète</button>
+              <button class="btn" data-act="retry-err">${icon("target")}Refaire mes erreurs</button>
               <button class="btn primary" data-act="review">${icon("search")}Mes erreurs</button>
             </div>
           </div>
@@ -117,7 +118,7 @@ window.Qcm = (function () {
     Store.set(st.runKey, Object.assign({
       chapter: st.chapter, deck: st.deck, idx: st.idx, pts: st.pts, nOk: st.nOk, nPart: st.nPart, nKo: st.nKo,
       results: st.results.map(r => ({ i: st.deck.indexOf(r.c), sel: r.sel, res: r.res })),
-      locked: st.locked, finished: !!st.finished, reviewing: st.reviewing || null, t: Date.now()
+      locked: st.locked, finished: !!st.finished, reviewing: st.reviewing || null, t: Date.now(), t0: st.t0 || Date.now(), retry: !!st.retry
     }, extra || {}));
   }
   function resume() {
@@ -126,7 +127,7 @@ window.Qcm = (function () {
     if (r.finished && Date.now() - (r.t || 0) > 30 * 60000) return false; // résultat ancien : nouvel accueil
     Object.assign(st, { deck: r.deck, idx: Math.min(r.idx || 0, r.deck.length - 1), pts: r.pts || 0, nOk: r.nOk || 0, nPart: r.nPart || 0, nKo: r.nKo || 0,
       results: (r.results || []).filter(x => r.deck[x.i]).map(x => ({ c: r.deck[x.i], sel: x.sel || [], res: x.res })),
-      sel: new Set(), locked: false, busy: false, inRun: true, finished: !!r.finished, chapter: r.chapter || "all" });
+      sel: new Set(), locked: false, busy: false, inRun: true, finished: !!r.finished, chapter: r.chapter || "all", t0: r.t0 || Date.now(), retry: !!r.retry });
     const sel = q(".chap-select"); if (sel) sel.value = st.chapter;
     q(".qcm-intro").hidden = true; q(".qcm-empty").hidden = true;
     q(".qcm-tot").textContent = st.deck.length;
@@ -215,14 +216,16 @@ window.Qcm = (function () {
     return { cat: c[0], q: c[1], opts, exp: c[3] || "" };
   }
 
-  function start() {
+  /* list : questions déjà construites (refaire ses erreurs) */
+  function start(list) {
     st.timers.forEach(clearTimeout); st.timers = [];
     const p = App.prefs();
     let pool = st.S.qcm.filter(c => st.chapter === "all" || c[0] === st.chapter);
     if (p.shufq) pool = shuffle(pool);
     const n = p.qcmCount > 0 ? p.qcmCount : pool.length;
+    const deck = Array.isArray(list) ? (p.shufq ? shuffle(list) : list).map(c => Object.assign({}, c, { opts: p.shufo ? shuffle(c.opts) : c.opts })) : pool.slice(0, n).map(build);
     Object.assign(st, {
-      deck: pool.slice(0, n).map(build), idx: 0, pts: 0, nOk: 0, nPart: 0, nKo: 0,
+      deck, idx: 0, pts: 0, nOk: 0, nPart: 0, nKo: 0, t0: Date.now(), retry: Array.isArray(list),
       results: [], sel: new Set(), locked: false, busy: false, finished: false, reviewing: null
     });
     q(".qcm-modal").hidden = true;
@@ -251,9 +254,9 @@ window.Qcm = (function () {
       null, { title: "QCM · " + strip(r.c.q).replace(/$/g, "").slice(0, 60), back: location.hash });
   }
 
-  function quit() {
-    if (st.results.length && !confirm("Arrêter l'évaluation en cours ? Ta progression sera perdue.")) return;
-    intro();
+  async function quit() {
+    if (st.results.length && !await App.ask("Ta progression dans cette évaluation sera perdue.", { title: "Arrêter l'évaluation ?", ok: "Arrêter", danger: true })) return;
+    if (st) intro();
   }
 
   const fmt = n => (Math.round(n * 2) / 2).toString().replace(".", ",");
@@ -399,6 +402,7 @@ window.Qcm = (function () {
     q(".qcm-mention").innerHTML = `<p class="grade-msg">${esc(gradeMessage(n20))}</p><span>${fmt(st.pts)} / ${st.deck.length} points · ${pct} %</span>`;
     q(".qcm-stats").innerHTML = `<span class="counter ok">${icon("check")}<b>${st.nOk}</b></span><span class="counter part">½<b>${st.nPart}</b></span><span class="counter ko">${icon("x")}<b>${st.nKo}</b></span>`;
     q(".qcm-modal").hidden = false;
+    q("[data-act=retry-err]").hidden = !st.results.some(x => x.res !== "ok");
     st.reviewing = null;
     if (restored) { saveRun(); return; }
     st.finished = true;
@@ -410,7 +414,7 @@ window.Qcm = (function () {
     const hist = Store.get(hk, []);
     hist.push({ t: Date.now(), n20, pct, n: st.deck.length, ok: st.nOk, part: st.nPart, ko: st.nKo, chap: st.chapter });
     Store.set(hk, hist.slice(-200));
-    if (window.Track) Track.event(st.ctx.profile.id, { type: "qcm", sid: st.S.id, title: st.S.title, n20, pct, n: st.deck.length, chap: st.chapter });
+    if (window.Track) Track.event(st.ctx.profile.id, { type: "qcm", sid: st.S.id, title: st.S.title + (st.retry ? " (erreurs)" : ""), n20, pct, n: st.deck.length, chap: st.chapter, dur: Math.round((Date.now() - (st.t0 || Date.now())) / 1000) });
     if (App.prefs().conf) { confetti(); if (r >= .85) setTimeout(confetti, 900); }
   }
 
@@ -437,7 +441,7 @@ window.Qcm = (function () {
       if (window.Assistant && Assistant.available()) h += `<button class="btn subtle small ask-btn" data-act="ask" data-r="${st.results.indexOf(e)}">${icon("sparkle")}Expliquer</button>`;
       h += `</div>`;
     });
-    h += `<div class="rv-actions"><button class="btn primary" data-act="restart">${icon("reset")}Nouvelle évaluation</button></div>`;
+    h += `<div class="rv-actions">${errs.length ? `<button class="btn" data-act="retry-err">${icon("target")}Refaire mes ${errs.length} erreur${errs.length > 1 ? "s" : ""}</button>` : ""}<button class="btn primary" data-act="restart">${icon("reset")}Nouvelle évaluation</button></div>`;
     q(".qcm-review").innerHTML = h;
     q(".qcm-review").hidden = false;
     const sc = document.getElementById("scroller");
@@ -456,6 +460,7 @@ window.Qcm = (function () {
       case "rv-err": showReview(false); break;
       case "rv-all": showReview(true); break;
       case "restart": start(); break;
+      case "retry-err": start(st.results.filter(x => x.res !== "ok").map(x => x.c)); App.toast("C'est reparti sur tes erreurs"); break;
       case "begin": start(); break;
       case "ask": askWhy(st.results[+t.dataset.r]); break;
       case "quit": quit(); break;

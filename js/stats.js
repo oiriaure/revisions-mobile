@@ -100,7 +100,8 @@ window.Stats = (function () {
     const recent = [].concat(...subs.map(s => Store.get(`rev:${pid}:${s.id}:qcmhist`, []).map(x => Object.assign({ s }, x)))).sort((a, b) => b.t - a.t).slice(0, 8);
     el.innerHTML = `
       <section class="page">
-        <div class="page-head"><div><h1>Statistiques</h1><p class="page-sub">Ton temps de révision et tes résultats${window.Sync && Sync.enabled() ? ", sur tous tes ordinateurs" : ""}.</p></div></div>
+        <div class="page-head"><div><h1>Statistiques</h1><p class="page-sub">Ton temps de révision et tes résultats${window.Sync && Sync.enabled() ? ", sur tous tes appareils" : ""}.</p></div>
+          <a class="btn" href="#/${pid}/history">${icon("award")}Historique des QCM</a></div>
         <div class="kpis">
           <div class="kpi"><span class="kpi-ico">${icon("clock")}</span><small>Aujourd'hui</small><b>${fmt(T.today)}</b>
             <div class="kpi-bar"><i style="width:${pct}%"></i></div><em>${pct >= 100 ? "Objectif atteint !" : `Objectif : ${fmt(goal)}`}</em></div>
@@ -126,7 +127,7 @@ window.Stats = (function () {
           ${T.bySubject._notes ? `<div class="list-row stats-row"><span class="st-name">${icon("note")}Notes</span><span>${fmt(T.bySubject._notes)}</span><span>${fmt(T.todayBy._notes || 0)}</span><span>—</span><span>—</span><span>—</span></div>` : ""}
         </div>
 
-        <h2 class="section-title">Derniers QCM</h2>
+        <h2 class="section-title">Derniers QCM <a class="chip-btn" href="#/${pid}/history">Tout afficher</a></h2>
         ${recent.length ? `<div class="list">${recent.map(x => `
           <div class="list-row recent-row">
             <span class="grade-chip ${x.n20 >= 15 ? "ok" : x.n20 >= 10 ? "part" : "ko"}">${nf(x.n20)}<small>/20</small></span>

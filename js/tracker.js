@@ -14,7 +14,7 @@ window.Track = (function () {
   let lastAct = Date.now(), lastTick = Date.now(), lastStudy = 0;
   let cont = 0;               // secondes de révision sans vraie pause
   let snoozeUntil = 0;
-  const hooks = [];
+  const hooks = [], evHooks = [];
 
   const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const timeKey = pid => `rev:${pid}:time`;
@@ -147,7 +147,8 @@ window.Track = (function () {
     const k = `rev:${pid}:events`;
     const list = Store.get(k, []);
     list.push(Object.assign({ t: Date.now(), id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5) }, ev));
-    Store.set(k, list.slice(-150));
+    Store.set(k, list.slice(-600));
+    evHooks.forEach(f => { try { f(pid, list[list.length - 1]); } catch (e) { /* un écran ne doit rien bloquer */ } });
     if (window.Sync) Sync.soon(true);
   }
   function events(pid) {
@@ -165,5 +166,5 @@ window.Track = (function () {
     document.addEventListener("click", e => { if (e.target.closest("#pause-pop")) onPauseClick(e); });
   }
 
-  return { init, setContext, totals, lastDays, streak, fmt, event, events, dayKey, onTick: f => hooks.push(f), showBreak };
+  return { init, setContext, totals, lastDays, streak, fmt, event, events, dayKey, onTick: f => hooks.push(f), onEvent: f => evHooks.push(f), showBreak };
 })();

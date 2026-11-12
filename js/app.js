@@ -23,9 +23,10 @@ window.App = (function () {
     theme: "auto", accentAuto: true, accent: "#c2366e", fs: 18, font: "system",
     speed: 6, dir: "Y", showcat: true, flashbg: true,
     qcmCount: 30, shufq: true, shufo: true, conf: true, cheer: true, kbd: true,
-    breakOn: true, breakEvery: 60, goal: 30, remoteNotif: true
+    breakOn: true, breakEvery: 60, goal: 30, remoteNotif: true, planNotif: true, sysNotif: true
   };
-  const MODES = { flash: "Flashcards", rappels: "Fiches de cours", qcm: "QCM", assistant: "Prof Susuzouzou", notes: "Notes", stats: "Statistiques" };
+  const MODES = { flash: "Flashcards", rappels: "Fiches de cours", qcm: "QCM", assistant: "Prof Susuzouzou", notes: "Notes", stats: "Statistiques", calendar: "Calendrier", history: "Historique des QCM" };
+  const PAGES = ["assistant", "notes", "stats", "calendar", "history"];
 
   let prefs = Object.assign({}, DEF);
   let cur = { profile: null, subject: null, mode: null };
@@ -187,12 +188,36 @@ window.App = (function () {
   }
 
   let toastTimer = null;
-  function toast(msg) {
+  /* Petit message en bas ; o.action + o.label : bouton (ex. « Annuler ») */
+  function toast(msg, o) {
     const t = $("#toast");
-    t.textContent = msg;
+    t.innerHTML = esc(msg) + (o && o.action ? `<button class="toast-btn">${esc(o.label || "Annuler")}</button>` : "");
+    t.classList.toggle("has-btn", !!(o && o.action));
+    if (o && o.action) t.querySelector("button").onclick = () => { t.classList.remove("show"); o.action(); };
     t.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+    toastTimer = setTimeout(() => t.classList.remove("show"), o && o.action ? 6000 : 2400);
+  }
+
+  /* Fenêtre de confirmation (remplace la boîte du navigateur) → Promise<boolean> */
+  function ask(msg, o = {}) {
+    return new Promise(res => {
+      const old = document.getElementById("ask-dlg"); if (old) old.remove();
+      const m = document.createElement("div");
+      m.className = "modal"; m.id = "ask-dlg";
+      m.innerHTML = `<div class="dialog ask-dialog" role="alertdialog">
+        <div class="ask-body"><span class="ask-ico${o.danger ? " danger" : ""}">${icon(o.icon || (o.danger ? "trash" : "bell"))}</span>
+          <div><h3>${esc(o.title || "Confirmer")}</h3><p>${esc(msg)}</p></div></div>
+        <div class="dialog-foot"><span class="spacer"></span><button class="btn" data-ask="0">${esc(o.cancel || "Annuler")}</button>
+          <button class="btn ${o.danger ? "ko" : "primary"}" data-ask="1">${esc(o.ok || "OK")}</button></div></div>`;
+      document.body.appendChild(m);
+      const done = v => { m.remove(); document.removeEventListener("keydown", key, true); res(v); };
+      const key = e => { if (e.key === "Escape") { e.stopPropagation(); done(false); } else if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); done(true); } };
+      document.addEventListener("keydown", key, true);
+      m.addEventListener("mousedown", e => { if (e.target === m) done(false); });
+      m.addEventListener("click", e => { const b = e.target.closest("[data-ask]"); if (b) done(b.dataset.ask === "1"); });
+      setTimeout(() => m.querySelector("[data-ask='1']").focus(), 20);
+    });
   }
 
   /* ---------------- Barre de titre ---------------- */
@@ -201,7 +226,12 @@ window.App = (function () {
       const last = i === parts.length - 1;
       const label = `<span class="${last ? "tb-current" : "tb-crumb"}">${esc(p.label)}</span>`;
       return (i ? `<span class="tb-sep">${icon("right")}</span>` : "") + (p.href && !last ? `<a href="${p.href}">${label}</a>` : label);
-    }).join("")}</div>`;
+    }).join("")}</div>${cur.profile ? Social.titlebarHTML(cur.profile.id) : ""}`;
+    Social.badge();
+  }
+  function refreshTitlebar() {
+    const r = document.querySelector("#titlebar .tb-right");
+    if (r && cur.profile) { r.outerHTML = Social.titlebarHTML(cur.profile.id); Social.badge(); }
   }
 
   /* ---------------- Barre latérale ---------------- */
@@ -214,16 +244,18 @@ window.App = (function () {
           <span class="sb-profile-txt"><b>${esc(profile.name)}${heart(profile)}</b><small>Changer de profil</small></span>
           ${icon("swap", "sb-swap")}
         </a>
+        <button class="sb-search" data-app="palette">${icon("search")}<span>Rechercher…</span><kbd>Ctrl K</kbd></button>
       </div>
       <nav class="sb-nav">
         <a class="sb-item" data-nav="home" href="#/${profile.id}">${icon("home")}<span>Accueil</span></a>
+        <a class="sb-item" data-nav="calendar" href="#/${profile.id}/calendar">${icon("calendar")}<span>Calendrier</span><span class="sb-count" id="sb-plan"></span></a>
         <a class="sb-item" data-nav="assistant" href="#/${profile.id}/assistant">${icon("sparkle")}<span>Prof Susuzouzou</span><span class="sb-badge">IA</span></a>
         <a class="sb-item" data-nav="notes" href="#/${profile.id}/notes">${icon("note")}<span>Notes</span></a>
         <a class="sb-item" data-nav="stats" href="#/${profile.id}/stats">${icon("chart")}<span>Statistiques</span><span class="sb-time" id="sb-today"></span></a>
         <div class="sb-section">Matières</div>
         ${subs.length ? subs.map(s => `
           <a class="sb-item sb-subject" data-nav="${s.id}" href="#/${profile.id}/${s.id}" style="--sc:${s.color}">
-            ${s.iconImg ? subjIcon(s, "sb-icon") : `<span class="sb-dot"></span>`}<span class="sb-label">${esc(s.title)}</span>
+            ${s.iconImg ? subjIcon(s, "sb-icon") : `<span class="sb-dot"></span>`}<span class="sb-label">${esc(s.title)}</span>${examPill(profile.id, s.id)}
           </a>
           <div class="sb-sub" data-sub="${s.id}">
             <a class="sb-item sm" data-nav="${s.id}:home" href="#/${profile.id}/${s.id}">${icon("grid")}<span>Vue d'ensemble</span></a>
@@ -242,13 +274,18 @@ window.App = (function () {
     sidebarFor = profile.id;
   }
 
+  /* J-x à côté d'une matière dont le partiel approche (14 jours) */
+  function examPill(pid, sid) {
+    const d = daysLeft(((Store.get(`rev:${pid}:subjmeta`, {})[sid]) || {}).exam);
+    return d != null && d >= 0 && d <= 14 ? `<span class="sb-exam${d <= 3 ? " hot" : ""}" title="${esc(examTag(d))}">${d === 0 ? "J" : "J-" + d}</span>` : "";
+  }
   function markSidebar() {
     const sid = cur.subject && cur.subject.id;
-    const key = ["assistant", "notes", "stats"].includes(cur.mode) ? cur.mode : !sid ? "home" : `${sid}:${cur.mode || "home"}`;
+    const key = PAGES.includes(cur.mode) ? (cur.mode === "history" ? "stats" : cur.mode) : !sid ? "home" : `${sid}:${cur.mode || "home"}`;
     $$("#sidebar [data-nav]").forEach(a => {
       const n = a.dataset.nav;
       a.classList.toggle("active", n === key);
-      if (!n.includes(":") && !["home", "assistant", "notes", "stats"].includes(n)) a.classList.toggle("open", n === sid);
+      if (!n.includes(":") && n !== "home" && !PAGES.includes(n)) a.classList.toggle("open", n === sid);
     });
     $$("#sidebar .sb-sub").forEach(d => d.classList.toggle("open", d.dataset.sub === sid));
   }
@@ -281,6 +318,7 @@ window.App = (function () {
               <span class="avatar-ring">${avatar(p, "lg")}</span>
               <span class="pname">${esc(p.name)}${heart(p)}</span>
               <span class="pmeta">${n ? plural(n, "matière") : esc(p.tagline)}</span>
+              ${profileStatus(p)}
               <span class="pgo">Accéder ${icon("right")}</span>
               <kbd class="pkey">${k + 1}</kbd>
             </a>`;
@@ -290,6 +328,13 @@ window.App = (function () {
       </section>`;
   }
 
+  /* Profil ouvert ailleurs (en ligne) ou dernière activité */
+  function profileStatus(p) {
+    if (!window.Sync || !Sync.enabled()) return "";
+    const s = Sync.presence(p.id);
+    if (s.online && !s.here) return `<span class="pstatus on"><i></i>En ligne${s.platform ? " sur " + esc(s.platform) : ""}</span>`;
+    return s.at ? `<span class="pstatus"><i></i>Vu${p.id === "angele" ? "e" : ""} ${esc(Social.ago(s.at))}</span>` : "";
+  }
   /* Thème de l'écran de lancement (indépendant des profils) */
   function setLaunchTheme(t) {
     Store.set("rev:launch:theme", t);
@@ -413,6 +458,7 @@ window.App = (function () {
     };
   }
 
+  const hello = () => { const h = new Date().getHours(); return h >= 18 || h < 4 ? "Bonsoir" : "Bonjour"; };
   /* ---------- Tableau de bord de l'accueil ---------- */
   const daysLeft = iso => {
     if (!iso) return null;
@@ -443,7 +489,9 @@ window.App = (function () {
     const r = resumeItem(profile);
     const others = PROFILES.filter(p => p.id !== profile.id);
     const feed = [].concat(...PROFILES.map(p => Track.events(p.id).filter(e => e.type === "qcm").map(e => Object.assign({ p }, e))))
-      .sort((a, b) => b.t - a.t).slice(0, 4);
+      .sort((a, b) => b.t - a.t);
+    const nAll = feed.length;
+    feed.splice(5);
     const nf = x => (Math.round(x * 10) / 10).toString().replace(".", ",");
     const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "à l'instant" : m < 60 ? `il y a ${m} min` : m < 1440 ? `il y a ${Math.round(m / 60)} h` : new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }); };
     return `
@@ -467,19 +515,21 @@ window.App = (function () {
         </a>`}
       </div>
       <div class="dash-row">
-        <div class="card-box chart-card">
-          <div class="card-head"><h3>${icon("chart")}Temps de révision · 7 jours</h3><a class="chip-btn" href="#/${profile.id}/stats">Détails</a></div>
-          ${Stats.profilesChart()}
-        </div>
-        ${others.length ? `<div class="card-box feed-card">
-          <div class="card-head"><h3>${icon("award")}Derniers QCM</h3>${window.Sync && Sync.enabled() ? `<span class="sync-dot" title="Synchronisé entre vos ordinateurs"></span>` : ""}</div>
+        ${Plan.todayHTML(profile)}
+        <div class="card-box feed-card">
+          <div class="card-head"><h3>${icon("award")}Derniers QCM</h3>${window.Sync && Sync.enabled() ? `<span class="sync-dot" title="Synchronisé entre vos appareils"></span>` : ""}
+            ${nAll ? `<a class="chip-btn" href="#/${profile.id}/history">Tout afficher${nAll > 5 ? ` <b class="cb-n">${nAll}</b>` : ""}</a>` : ""}</div>
           ${feed.length ? `<div class="feed">${feed.map(e => `
-            <div class="feed-item">
+            <div class="feed-item" data-href="#/${profile.id}/history" role="link">
               ${avatar(e.p, "xs")}
               <span><span class="fi-top"><b>${esc(e.p.name)}</b> · ${esc(e.title || "")}</span><small>${ago(e.t)} · ${e.n} questions</small></span>
               <span class="grade-chip ${e.n20 >= 15 ? "ok" : e.n20 >= 10 ? "part" : "ko"}">${nf(e.n20)}<small>/20</small></span>
-            </div>`).join("")}</div>` : `<p class="feed-empty">Les QCM terminés par ${others.map(p => esc(p.name)).join(" et ")} et toi apparaîtront ici${window.Sync && Sync.enabled() ? "" : " (synchronisation à activer dans les Réglages)"}.</p>`}
-        </div>` : ""}
+            </div>`).join("")}</div>` : `<p class="feed-empty">Les QCM terminés par ${others.length ? others.map(p => esc(p.name)).join(" et ") + " et toi" : "toi"} apparaîtront ici${window.Sync && Sync.enabled() ? "" : " (synchronisation à activer dans les Réglages)"}.</p>`}
+        </div>
+      </div>
+      <div class="card-box chart-card">
+        <div class="card-head"><h3>${icon("chart")}Temps de révision · 7 jours</h3><a class="chip-btn" href="#/${profile.id}/stats">Détails</a></div>
+        ${Stats.profilesChart()}
       </div>`;
   }
 
@@ -489,7 +539,7 @@ window.App = (function () {
     if (!subs.length) {
       view().innerHTML = `
         <section class="page">
-          <div class="page-head"><div><h1>Bonjour ${esc(profile.name)}</h1><p class="page-sub">Ton espace est prêt.</p></div></div>
+          <div class="page-head"><div><h1>${hello()} ${esc(profile.name)}</h1><p class="page-sub">Ton espace est prêt.</p></div></div>
           <div class="empty">${icon("stack", "empty-ico")}<h3>Aucune matière pour l'instant</h3><p>Les matières apparaîtront ici dès qu'elles seront ajoutées.</p></div>
           <a class="assist-banner" href="#/${profile.id}/assistant" data-scope="none">
             <span class="step-ico">${icon("sparkle")}</span>
@@ -534,7 +584,7 @@ window.App = (function () {
     };
     view().innerHTML = `
       <section class="page">
-        <div class="page-head"><div><h1>Bonjour ${esc(profile.name)}${heart(profile)}</h1><p class="page-sub">Choisis une matière pour réviser tes partiels.</p></div></div>
+        <div class="page-head"><div><h1>${hello()} ${esc(profile.name)}${heart(profile)}</h1><p class="page-sub">Choisis une matière pour réviser tes partiels.</p></div></div>
         ${dashboardHTML(profile)}
         <h2 class="section-title">Mes matières</h2>
         <div class="home-filters">
@@ -625,6 +675,7 @@ window.App = (function () {
           <span class="assist-go">Demander à Prof Susuzouzou ${icon("arrow")}</span>
         </a>`}
 
+        ${recentGradesHTML(profile, S)}
         <h2 class="section-title">Réviser un chapitre</h2>
         ${chapters.length ? `
         <div class="list">
@@ -648,8 +699,18 @@ window.App = (function () {
       </section>`;
   }
 
+  /* Matière : dernières notes de QCM + bouton pour planifier une séance */
+  function recentGradesHTML(profile, S) {
+    const h = Store.get(`rev:${profile.id}:${S.id}:qcmhist`, []).slice(-6).reverse();
+    const nf = x => (Math.round(x * 10) / 10).toString().replace(".", ",");
+    return `<div class="subj-actions">
+      <div class="sa-grades">${h.length ? `<span class="sa-lbl">${icon("award")}Derniers QCM</span>${h.map(x => `<span class="grade-chip ${x.n20 >= 15 ? "ok" : x.n20 >= 10 ? "part" : "ko"}" title="${new Date(x.t).toLocaleDateString("fr-FR")}">${nf(x.n20)}</span>`).join("")}
+        <a class="chip-btn" href="#/${profile.id}/history">Historique</a>` : `<span class="sa-lbl">${icon("award")}Pas encore de QCM terminé</span>`}</div>
+      <button class="btn" data-plan-subject="${S.id}">${icon("calendar")}Planifier une séance</button>
+    </div>`;
+  }
   function renderMode(profile, S, mode) {
-    const C = mode === "qcm" ? Qcm : mode === "rappels" ? Rappels : mode === "assistant" ? Assistant : mode === "notes" ? Notes : Flashcards;
+    const C = { qcm: Qcm, rappels: Rappels, assistant: Assistant, notes: Notes, calendar: Plan, history: QcmHistory }[mode] || Flashcards;
     ctrl = C;
     setTitlebar(S ? [{ label: S.title, href: `#/${profile.id}/${S.id}` }, { label: MODES[mode] }] : [{ label: MODES[mode] }]);
     C.mount(view(), { profile, subject: S });
@@ -665,7 +726,7 @@ window.App = (function () {
 
   /* ---------------- Tutoriel ---------------- */
   /* Version du tutoriel : l'augmenter le rouvre une fois pour montrer les nouveautés */
-  const TUTO_VERSION = 3;
+  const TUTO_VERSION = 4;
   const TUTO = [
     { ico: "stack", title: "Bienvenue dans Révisions",
       text: "L'application t'aide à préparer tes partiels, matière par matière. Ce petit tour dure une minute et te montre tout ce qu'il faut savoir." },
@@ -690,6 +751,12 @@ window.App = (function () {
     { ico: "note", title: "Notes et pauses",
       text: "Dans « Notes », écris tes idées, questions et points à revoir ; tout est enregistré automatiquement. Après une heure de révision, un petit rappel te propose une pause de 5 à 10 minutes.",
       tips: ["Une note peut être rattachée à une matière", "Le rappel de pause se règle dans Réglages › Notifications", "Tout est sauvegardé sur ton ordinateur : rien n'est perdu en fermant l'application"] },
+    { ico: "calendar", title: "Ton calendrier de révision",
+      text: "« Organiser mon programme » répartit tes séances jusqu'à tes partiels, matière par matière. Tout se modifie : clique sur une séance, glisse-la sur un autre jour, coche-la quand c'est fait.",
+      tips: ["Une séance se coche toute seule quand tu termines le QCM ou les flashcards prévus", "« Tous les profils » affiche aussi le calendrier des autres", "« Exporter » l'ajoute à l'agenda de ton téléphone"] },
+    { ico: "users", title: "Notifications et notes partagées",
+      text: "La cloche en haut à droite rassemble les QCM des autres profils et les invitations. Dans « Notes », le bouton Partager invite un autre profil : une fois accepté, vous écrivez dans la même note, en direct.",
+      tips: ["Une pastille verte indique qu'une personne est en ligne", "Ctrl + K : recherche une page, un chapitre, une question ou une note", "« Tout afficher » sur l'accueil : l'historique complet des QCM"] },
     { ico: "sliders", title: "Quelques astuces",
       text: "Tout se retrouve dans la barre de gauche : l'Assistant, tes matières, puis Fiches, Flashcards et QCM.",
       tips: ["Réglages : thème clair ou sombre, taille du texte, encouragements…", "Touche ? : les raccourcis clavier (Espace, flèches, Entrée)", "Tes cours et l'application se mettent à jour tout seuls", "Ce tutoriel reste disponible dans la barre de gauche"] }
@@ -734,6 +801,7 @@ window.App = (function () {
 
     if (!profile) {
       Track.setContext(null, null, null);
+      if (window.Sync) Sync.setActive(null);
       loadPrefs(null); prefs.theme = Store.get("rev:launch:theme", "auto"); applyPrefs(); renderProfiles();
       document.title = "Révisions";
       $("#scroller").scrollTop = 0;
@@ -743,7 +811,7 @@ window.App = (function () {
     $("#app").classList.remove("no-sidebar");
     if (sidebarFor !== profile.id) renderSidebar(profile);
 
-    const page = ["assistant", "notes", "stats"].includes(parts[1]) ? parts[1] : null;
+    const page = PAGES.includes(parts[1]) ? parts[1] : null;
     const general = page === "assistant";
     const S = page ? null : subjectsOf(profile.id).find(s => s.id === parts[1]);
     cur.subject = S || null;
@@ -751,6 +819,7 @@ window.App = (function () {
     cur.mode = page || (S && ["flash", "rappels", "qcm"].includes(parts[2]) ? parts[2] : null);
     applyPrefs(); markSidebar();
     Track.setContext(profile.id, S ? S.id : null, cur.mode);
+    if (window.Sync) Sync.setActive(profile.id);
     updateToday();
 
     const seen = Store.get(`rev:${profile.id}:tuto`, 0);
@@ -762,6 +831,9 @@ window.App = (function () {
     else if (!cur.mode) { renderSubjectHome(profile, S); document.title = `${S.title} · Révisions`; }
     else { renderMode(profile, S, cur.mode); document.title = `${S.title} · ${MODES[cur.mode]}`; }
     $("#scroller").scrollTop = 0;
+    U.replay(view(), "view-in");
+    unreadTitle();
+    if (window.Plan) Plan.tick();
   }
 
   /* ---------------- Clavier ---------------- */
@@ -798,6 +870,10 @@ window.App = (function () {
       if (a) {
         const act = a.dataset.app;
         if (act === "help") { openSettings(false); toggleHelp(true); }
+        else if (act === "inbox") Social.openInbox(a);
+        else if (act === "palette") Palette.open();
+        else if (act === "data-export") exportData();
+        else if (act === "data-import") importData();
         else if (act === "help-close") toggleHelp(false);
         else if (act === "settings") openSettings(true);
         else if (act === "settings-close") openSettings(false);
@@ -814,6 +890,10 @@ window.App = (function () {
         else if (act === "tuto-prev") tutoMove(-1);
         return;
       }
+      const ps = e.target.closest("[data-plan-subject]");
+      if (ps && cur.profile) { Plan.planNew(cur.profile.id, { sid: ps.dataset.planSubject, kind: "flash" }); return; }
+      const fi = e.target.closest(".feed-item[data-href]");
+      if (fi) { location.hash = fi.dataset.href; return; }
       const lt = e.target.closest("[data-launch-theme]");
       if (lt) { setLaunchTheme(lt.dataset.launchTheme); return; }
       const fav = e.target.closest("[data-fav]");
@@ -852,6 +932,8 @@ window.App = (function () {
     $("#settings").addEventListener("change", onPrefInput);
     document.addEventListener("keydown", onKey);
     window.addEventListener("hashchange", route);
+    window.addEventListener("offline", () => toast("Hors ligne : tout reste enregistré et sera synchronisé au retour d'Internet"));
+    window.addEventListener("online", () => toast("De retour en ligne"));
     mq.addEventListener("change", () => { if (prefs.theme === "auto") applyPrefs(); });
     loadCachedContent();
     renderIphone();
@@ -859,21 +941,34 @@ window.App = (function () {
     Track.onTick(updateToday);
     if (window.Sync) {
       Sync.onUpdate(u => {
-        if (u.kind === "event" && u.ev.type === "qcm" && prefs.remoteNotif) {
+        if (u.kind === "event" && u.ev.type === "qcm") {
+          /* rangé dans les notifications ; bulle seulement si c'est arrivé pendant que l'app est ouverte */
           const p = profileById(u.pid);
-          if (p && (!cur.profile || cur.profile.id !== u.pid))
+          const fresh = Social.qcmItem(u.pid, u.ev);
+          if (fresh && p && prefs.remoteNotif && (!cur.profile || cur.profile.id !== u.pid))
             notice({ avatar: avatar(p, "sm"), title: `${p.name} a terminé un QCM : ${String(u.ev.n20).replace(".", ",")} / 20`, text: `${u.ev.title || ""} · ${u.ev.n} questions` });
         }
+        if (u.kind === "data" && u.keys && u.keys.some(k => /:snote:|:sresp$/.test(k))) { Social.scan(popup); refreshTitlebar(); }
         if (u.kind === "data" || u.kind === "event" || u.kind === "remote") {
           if (cur.profile && u.pid === cur.profile.id && u.keys && u.keys.some(k => k.endsWith(":prefs"))) { loadPrefs(cur.profile.id); applyPrefs(); }
-          if (ctrl && ctrl.remote && u.keys) ctrl.remote(u.pid, u.keys);
+          if (ctrl && ctrl.remote) ctrl.remote(u.pid, u.keys || []);
           else if (!ctrl) refreshView();
+          Social.refreshPeople();
         }
         const st = document.getElementById("sync-state");
         if (st) st.textContent = syncText();
       });
       Sync.init();
     }
+    /* Notifications déjà reçues : rangées sans bulle */
+    PROFILES.forEach(p => Track.events(p.id).filter(e => e.type === "qcm" && Date.now() - e.t < 14 * 864e5).forEach(e => Social.qcmItem(p.id, e)));
+    Social.scan(null);
+    Social.setNav((href, open) => {
+      if (open) pendingSharedNote = open;
+      if (href) { if (location.hash === href && ctrl === Notes) { ctrl.unmount(); route(); } else location.hash = href; }
+      else if (ctrl && ctrl.remote) ctrl.remote(cur.profile && cur.profile.id, [":sresp"]);
+      refreshTitlebar();
+    });
     route();
     checkRemote();
     /* Fin du chargement : on laisse l'animation se jouer au moins ~1,4 s */
@@ -894,7 +989,13 @@ window.App = (function () {
     location.hash = `#/${cur.profile.id}/${cur.subject.id}/${mode}`;
   }
 
-  let pendingPrompt = null, pendingScope = null, pendingOpts = null, pendingNoteSubject = null;
+  let pendingPrompt = null, pendingScope = null, pendingOpts = null, pendingNoteSubject = null, pendingSharedNote = null;
+  function takePendingSharedNote() { const o = pendingSharedNote; pendingSharedNote = null; return o; }
+  /* Bulle pour une notification (invitation, réponse…) */
+  function popup(o) {
+    const p = profileById(o.from);
+    notice({ avatar: p ? avatar(p, "sm") : null, title: o.title, text: o.text, onClick: () => { const b = document.querySelector(".tb-bell"); if (b) Social.openInbox(b); } });
+  }
   function askAssistant(text, scope, opts) {
     if (!cur.profile) return;
     pendingPrompt = text || null;
@@ -922,13 +1023,67 @@ window.App = (function () {
     n.innerHTML = `${o.avatar || `<span class="notice-ico">${icon(o.ico || "bell")}</span>`}
       <div class="notice-body"><b>${esc(o.title)}</b><small>${esc(o.text || "")}</small></div>
       <button class="icon-btn" title="Fermer">${icon("x")}</button>`;
-    n.querySelector("button").onclick = () => n.remove();
+    n.querySelector("button").onclick = e => { e.stopPropagation(); n.remove(); };
+    n.addEventListener("click", () => { n.remove(); if (o.onClick) o.onClick(); else { const b = document.querySelector(".tb-bell"); if (b) Social.openInbox(b); } });
+    /* au plus 3 bulles à la fois */
+    while (box.children.length >= 3) box.firstElementChild.remove();
     box.appendChild(n);
     requestAnimationFrame(() => n.classList.add("show"));
     setTimeout(() => { n.classList.remove("show"); setTimeout(() => n.remove(), 400); }, 9000);
+    /* Fenêtre en arrière-plan : notification du système (Windows / Mac) */
+    if (prefs.sysNotif && !window.MOBILE && window.Notification && (document.hidden || !document.hasFocus())) {
+      try {
+        const sn = new Notification(o.title, { body: o.text || "", icon: "assets/icon.png", silent: false });
+        sn.onclick = () => { window.focus(); if (bridge && bridge.focus) bridge.focus(); if (o.onClick) o.onClick(); };
+      } catch (e) { /* notifications indisponibles */ }
+    }
+    unreadTitle();
+  }
+  /* Nombre de notifications non lues dans le titre de la fenêtre */
+  function unreadTitle() {
+    const b = document.getElementById("tb-bell-n");
+    const n = b && !b.hidden ? b.textContent : "";
+    document.title = document.title.replace(/^\(\S+\) /, "");
+    if (n) document.title = `(${n}) ${document.title}`;
+    if (bridge && bridge.attention) bridge.attention(n ? parseInt(n, 10) || 10 : 0);
+  }
+  /* Copie de toutes les données (fichier .json) */
+  function exportData() {
+    const out = { app: "Révisions", version: 1, date: new Date().toISOString(), data: {} };
+    Store.keys("rev:").filter(k => !/^rev:(content|sync:|device|inbox)/.test(k)).forEach(k => { out.data[k] = Store.get(k, null); });
+    const url = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `Revisions-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast("Copie de tes données enregistrée");
+  }
+  function importData() {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".json,application/json";
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      f.text().then(async t => {
+        let o; try { o = JSON.parse(t); } catch (e) { toast("Ce fichier n'est pas une copie de Révisions"); return; }
+        if (!o || o.app !== "Révisions" || !o.data) { toast("Ce fichier n'est pas une copie de Révisions"); return; }
+        const n = Object.keys(o.data).length;
+        if (!await ask(`${n} données de la copie du ${new Date(o.date).toLocaleDateString("fr-FR")} vont remplacer celles d'aujourd'hui.`, { title: "Reprendre cette copie ?", ok: "Reprendre", danger: true })) return;
+        Object.keys(o.data).forEach(k => { if (k.startsWith("rev:")) Store.set(k, o.data[k]); });
+        toast("Copie reprise");
+        sidebarFor = null; if (ctrl) { ctrl.unmount(); ctrl = null; } route();
+      });
+    };
+    inp.click();
+  }
+  /* Ouvre une matière / un mode / un chapitre (depuis un rappel du calendrier) */
+  function studyChapterAt(pid, sid, mode, chap) {
+    pendingChapter = chap || null;
+    const h = `#/${pid}/${sid}/${mode}`;
+    if (location.hash === h) route(); else location.hash = h;
   }
 
-  return { init, prefs: () => prefs, setPref, toast, notice, studyChapter, askAssistant, takePendingPrompt, takePendingScope, takePendingOpts, takePendingNoteSubject };
+  return { init, current: () => cur.profile && cur.profile.id, studyChapterAt, unreadTitle, prefs: () => prefs, setPref, toast, ask, notice, studyChapter, askAssistant, takePendingPrompt, takePendingScope, takePendingOpts, takePendingNoteSubject, takePendingSharedNote, refreshTitlebar };
 })();
 
 /* Sur téléphone, l'application démarre une fois activée et les cours reçus (mobile-boot.js) */

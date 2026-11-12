@@ -434,10 +434,13 @@ window.Assistant = (function () {
     } else if (act === "del") {
       e.stopPropagation();
       if (st.busy) return;
-      if (!confirm("Supprimer cette conversation ?")) return;
-      st.convs = st.convs.filter(c => c.id !== t.dataset.id);
-      if (st.cur === t.dataset.id) { st.cur = (st.convs[0] || newConv(defaultScope(st.pid))).id; Store.set(curKey(st.pid), st.cur); }
-      saveConvs(); renderAll();
+      const id = t.dataset.id;
+      App.ask("La conversation et ses messages seront effacés.", { title: "Supprimer cette conversation ?", ok: "Supprimer", danger: true }).then(ok => {
+        if (!ok || !st) return;
+        st.convs = st.convs.filter(c => c.id !== id);
+        if (st.cur === id) { st.cur = (st.convs[0] || newConv(defaultScope(st.pid))).id; Store.set(curKey(st.pid), st.cur); }
+        saveConvs(); renderAll();
+      });
     } else if (act === "open") {
       if (st.busy) return;
       st.cur = t.dataset.id; Store.set(curKey(st.pid), st.cur);

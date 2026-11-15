@@ -85,65 +85,106 @@
     window.CONTENT_VERSION = 0;
     return true;
   }
-  /* Menu : la barre latérale devient un panneau coulissant */
+  /* Interface d'application iPhone : barre de navigation avec retour, onglets, feuille « Plus » */
   function mobileUI() {
     const html = document.documentElement;
-    const close = () => html.classList.remove("nav-open");
-    const back = document.createElement("div");
-    back.className = "mb-backdrop";
-    back.addEventListener("click", close);
-    document.body.appendChild(back);
+    const svg = (p, w) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w || 1.8}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const parts = () => location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+    const subjectTitle = id => { const s = (window.SUBJECTS || []).find(x => x.id === id); return s ? s.title : "Retour"; };
+    const PAGE = { calendar: "Calendrier", notes: "Notes", stats: "Progrès", history: "Historique", assistant: "Prof Susuzouzou" };
+    const ROOTS = ["", "calendar", "notes", "assistant"];
+
+    /* Où mène « retour » depuis l'écran actuel ? */
+    function backTarget() {
+      const p = parts();
+      if (p.length < 2) return null;
+      const pid = p[0], second = p[1];
+      if (p.length === 2 && ROOTS.includes(second)) return null;
+      if (second === "history") return { href: `#/${pid}/stats`, label: "Progrès" };
+      if (p.length === 2) return { href: `#/${pid}`, label: PAGE[second] ? "Accueil" : "Accueil" };
+      return { href: `#/${pid}/${second}`, label: subjectTitle(second) };
+    }
+
+    /* ---- Barre de navigation ---- */
     const tb = document.getElementById("titlebar");
-    const addBtn = () => {
-      if (tb.querySelector(".mb-menu")) return;
-      const b = document.createElement("button");
-      b.className = "mb-menu"; b.setAttribute("aria-label", "Menu"); b.innerHTML = "<i></i>";
-      b.addEventListener("click", () => html.classList.toggle("nav-open"));
-      tb.prepend(b);
+    const syncNav = () => {
+      let b = tb.querySelector(".mb-back");
+      const t = backTarget();
+      if (!t) { if (b) b.remove(); return; }
+      if (!b) {
+        b = document.createElement("button");
+        b.className = "mb-back";
+        b.addEventListener("click", () => { const tt = backTarget(); if (tt) location.hash = tt.href; });
+        tb.prepend(b);
+      }
+      const lbl = t.label.length > 13 ? "Retour" : t.label;   // comme sur iPhone : libellé court
+      b.innerHTML = svg('<path d="m15 18-6-6 6-6"/>', 2.4) + `<span>${lbl.replace(/[&<>]/g, "")}</span>`;
+      b.setAttribute("aria-label", "Retour à " + t.label);
     };
-    new MutationObserver(addBtn).observe(tb, { childList: true });
-    addBtn();
-    /* Barre d'onglets en bas (comme une application iPhone) */
+    let busy = false;
+    new MutationObserver(() => { if (busy) return; busy = true; syncNav(); busy = false; }).observe(tb, { childList: true });
+    syncNav();
+
+    /* Grand titre dans la page ; le petit titre centré apparaît en défilant */
+    const scroller = document.getElementById("scroller");
+    const view = document.getElementById("view");
+    const largeTitle = () => html.classList.toggle("large-title", Array.from(view.querySelectorAll(".page-head h1, .toolbar-title")).some(e => e.offsetParent));
+    const onScroll = () => html.classList.toggle("scrolled", scroller.scrollTop > 34);
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    new MutationObserver(() => { largeTitle(); onScroll(); }).observe(view, { childList: true });
+    largeTitle();
+
+    /* ---- Feuille « Plus » (ancienne barre latérale) ---- */
+    const close = () => html.classList.remove("nav-open");
+    const head = document.createElement("div");
+    head.className = "mb-sheet-head";
+    head.innerHTML = `<b>Plus</b><button type="button">OK</button>`;
+    head.querySelector("button").addEventListener("click", close);
+    document.body.appendChild(head);
+    document.getElementById("sidebar").addEventListener("click", e => { if (e.target.closest("a[href], [data-nav], [data-app]")) close(); });
+
+    /* ---- Barre d'onglets ---- */
     const TABS = [["", "Accueil", '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>'],
       ["calendar", "Calendrier", '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'],
+      ["assistant", "Prof", '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'],
       ["notes", "Notes", '<path d="M5 3.5h10l4 4V20.5H5z"/><path d="M15 3.5v4h4"/><path d="M8.5 12h7M8.5 15.5h5"/>'],
-      ["stats", "Progrès", '<path d="M4 20V4"/><path d="M4 20h16"/><rect x="7.5" y="11" width="3" height="6" rx=".8"/><rect x="12.5" y="7" width="3" height="10" rx=".8"/><rect x="17.5" y="13" width="2.5" height="4" rx=".8"/>'],
-      ["menu", "Matières", '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>']];
+      ["menu", "Plus", '<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>']];
     const bar = document.createElement("nav");
     bar.className = "mb-tabs";
-    bar.innerHTML = TABS.map(([r, l, svg]) => `<button data-tab="${r}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${svg}</svg><span>${l}</span></button>`).join("");
+    bar.innerHTML = TABS.map(([r, l, p]) => `<button data-tab="${r}">${svg(p)}<span>${l}</span></button>`).join("");
     document.body.appendChild(bar);
-    const pidNow = () => (location.hash.match(/^#\/([a-z0-9_-]+)/) || [])[1];
     bar.addEventListener("click", e => {
       const b = e.target.closest("[data-tab]");
       if (!b) return;
-      const p = pidNow(); if (!p) return;
-      if (b.dataset.tab === "menu") { html.classList.toggle("nav-open"); return; }
+      const p = parts()[0]; if (!p) return;
+      if (b.dataset.tab === "menu") { html.classList.toggle("nav-open"); markTab(); return; }
       close();
-      location.hash = `#/${p}${b.dataset.tab ? "/" + b.dataset.tab : ""}`;
+      const h = `#/${p}${b.dataset.tab ? "/" + b.dataset.tab : ""}`;
+      if (location.hash === h) scroller.scrollTo({ top: 0, behavior: "smooth" }); else location.hash = h;
     });
-    const markTab = () => {
-      const part = (location.hash.split("/")[2] || "");
-      const key = ["calendar", "notes", "stats"].includes(part) ? part : part === "history" ? "stats" : part ? "menu" : "";
+    function markTab() {
+      const part = parts()[1] || "";
+      const key = html.classList.contains("nav-open") ? "menu" : ROOTS.includes(part) ? part : ["stats", "history"].includes(part) ? "menu" : "";
       bar.querySelectorAll("[data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === key));
-    };
-    addEventListener("hashchange", markTab);
+      html.classList.toggle("study", ["flash", "qcm"].includes(parts()[2]));
+    }
+    addEventListener("hashchange", () => { close(); markTab(); });
     markTab();
-    /* Couleur de Safari / de la barre d'état assortie au thème */
+
+    /* ---- Couleur de la barre d'état (heure, batterie) assortie à l'écran ---- */
     const meta = document.querySelector('meta[name="theme-color"]');
-    const tint = () => { if (meta) requestAnimationFrame(() => { meta.content = getComputedStyle(tb).backgroundColor || "#f6f5f2"; }); };
+    const tint = () => { if (meta) requestAnimationFrame(() => { meta.content = getComputedStyle(document.body).backgroundColor || "#f2f2f7"; }); };
     new MutationObserver(tint).observe(html, { attributes: true, attributeFilter: ["data-mode", "data-profile", "data-screen", "style"] });
     tint();
-    document.getElementById("sidebar").addEventListener("click", e => { if (e.target.closest("a[href], [data-nav], [data-app]")) close(); });
-    addEventListener("hashchange", close);
-    /* Glisser vers la gauche pour fermer, depuis le bord gauche pour ouvrir */
+
+    /* ---- Glisser depuis le bord gauche = retour (comme sur iPhone) ; vers le bas sur « Plus » = fermer ---- */
     let x0 = null, y0 = 0;
     addEventListener("touchstart", e => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
     addEventListener("touchend", e => {
       if (x0 == null) return;
-      const t = e.changedTouches[0], dx = t.clientX - x0, dy = Math.abs(t.clientY - y0);
-      if (dy < 60 && dx < -60 && html.classList.contains("nav-open")) close();
-      else if (dy < 60 && dx > 70 && x0 < 30 && !document.getElementById("app").classList.contains("no-sidebar")) html.classList.add("nav-open");
+      const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+      if (html.classList.contains("nav-open")) { if (dy > 90 && Math.abs(dx) < 60 && y0 < 160) close(); }
+      else if (x0 < 24 && dx > 70 && Math.abs(dy) < 60) { const tt = backTarget(); if (tt) location.hash = tt.href; }
       x0 = null;
     }, { passive: true });
   }

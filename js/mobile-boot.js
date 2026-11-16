@@ -173,7 +173,7 @@
 
     /* ---- Couleur de la barre d'état (heure, batterie) assortie à l'écran ---- */
     const meta = document.querySelector('meta[name="theme-color"]');
-    const tint = () => { if (meta) requestAnimationFrame(() => { meta.content = getComputedStyle(document.body).backgroundColor || "#f2f2f7"; }); };
+    const tint = () => { if (meta) requestAnimationFrame(() => { meta.content = (getComputedStyle(html).getPropertyValue("--bg") || "").trim() || "#f2f2f7"; }); };
     new MutationObserver(tint).observe(html, { attributes: true, attributeFilter: ["data-mode", "data-profile", "data-screen", "style"] });
     tint();
 

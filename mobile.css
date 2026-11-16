@@ -436,3 +436,44 @@ html.mobile .cal-hero .step-ico { display: none; }
 html.mobile .cal-hero .btn { width: 100%; }
 html.mobile .cal-summary .cs-item b { font-size: 16px; }
 html.mobile .notes-mode .note-editor .empty .btn { display: none; }
+
+/* =================================================================
+   Écran « Choisis ton profil » sur iPhone (corrigé le 16/11)
+   - le fond dégradé couvre tout l'écran, barre d'état comprise ;
+   - plus de bandeau : le bouton Clair / Sombre flotte en haut à droite ;
+   - la page défile normalement (plus de hauteur fixe qui coupait le titre).
+   ================================================================= */
+html.mobile.mobile.mobile[data-screen="profiles"] { --bg: #f6f9ff; }
+html.mobile.mobile.mobile[data-screen="profiles"][data-mode="dark"] { --bg: #05060b; }
+html.mobile[data-screen="profiles"] body, html.mobile[data-screen="profiles"] #app.no-sidebar .main { background: var(--l-bg); }
+html.mobile[data-screen="profiles"] #app.no-sidebar #titlebar {
+  position: absolute; top: 0; right: 0; left: auto; z-index: 5; min-height: 0; height: auto; border: 0; background: transparent;
+  padding: calc(env(safe-area-inset-top) + 10px) 14px 0 0;
+}
+html.mobile[data-screen="profiles"] .launch-theme { padding: 2px; border-radius: 10px; background: var(--l-card); border: 1px solid var(--l-card-border); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+html.mobile[data-screen="profiles"] .launch-theme button { height: 30px; padding: 0 11px; font-size: 14px; border-radius: 8px; }
+html.mobile[data-screen="profiles"] .launch-theme button .ico { width: 15px; height: 15px; }
+html.mobile #app.no-sidebar #scroller { overflow-y: auto; overflow-x: hidden; }
+html.mobile #app.no-sidebar #view { height: auto; min-height: 100%; padding: calc(env(safe-area-inset-top) + 64px) 20px calc(34px + env(safe-area-inset-bottom)); animation: none; }
+html.mobile #app.no-sidebar .launch-bg { position: fixed; }
+html.mobile .profiles { height: auto; min-height: 0; padding: 0; gap: 28px; justify-content: flex-start; }
+html.mobile .profiles-head .brand-row { display: inline-flex; }
+html.mobile .profiles-head h1 { font-size: 34px; margin-top: 18px; }
+html.mobile .profiles-head p { display: block; font-size: 16px; line-height: 1.45; padding: 0 6px; }
+html.mobile .profile-grid { flex-direction: column; flex-wrap: nowrap; width: 100%; gap: 14px; }
+html.mobile .profile-card {
+  width: 100%; display: grid; grid-template-columns: 84px minmax(0, 1fr); grid-template-areas: "ring name" "ring meta" "ring status" "go go";
+  column-gap: 16px; row-gap: 2px; align-items: center; text-align: left; padding: 18px; border-radius: 22px;
+}
+html.mobile .profile-card .avatar-ring { grid-area: ring; width: 84px; height: 84px; margin: 0; }
+html.mobile .profile-card .avatar-ring .avatar.lg { width: 72px; height: 72px; font-size: 32px; border-width: 3px; }
+html.mobile .profile-card .pname { grid-area: name; font-size: 24px; align-self: end; }
+html.mobile .profile-card .pmeta { grid-area: meta; font-size: 15px; }
+html.mobile .profile-card .pstatus { grid-area: status; margin: 2px 0 0; font-size: 13px; }
+html.mobile .profile-card .pgo { grid-area: go; width: 100%; height: 48px; margin-top: 14px; font-size: 17px; border-radius: 14px; }
+html.mobile .profile-card:hover { transform: none; }
+
+/* Fond de l'app en couleur simple (lisible par la barre d'état de l'iPhone) */
+html.mobile.mobile.mobile:not([data-mode="dark"]):not([data-screen="profiles"]) { --bg: #f2f2f7; }
+html.mobile.mobile.mobile[data-profile="angele"]:not([data-mode="dark"]) { --bg: #f8f0f4; }
+html.mobile.mobile.mobile[data-profile="clement"]:not([data-mode="dark"]) { --bg: #eff0f8; }
